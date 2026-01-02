@@ -1,78 +1,136 @@
-代码逻辑结构:
-huijiu-prototype/
-├─ pyproject.toml / requirements.txt
-├─ README.md
-├─ docs/                # 设计文档、笔记
-├─ hardware/            # 电路图、结构图等非代码文件（后面用）
-├─ src/
-│  └─ huijiu/
-│     ├─ sensors/       # 各类传感器 & I2C backend
-│     │  ├─ backends/
-│     │  │  ├─ __init__.py
-│     │  │  ├─ base.py              # I2CBackend 抽象
-│     │  │  └─ mcp2221_easy.py      # MCP2221EasyBackend 实现
-│     │  ├─ __init__.py
-│     │  ├─ mlx90614.py
-│     │  ├─ vl53l0x.py
-│     │  └─ manager.py              # 可选：统一管理多个传感器
-│     │
-│     ├─ vision/
-│     │  ├─ __init__.py
-│     │  ├─ d455.py                 # RealSense D455 封装
-│     │  ├─ calib_chessboard.py     # 相机标定
-│     │  └─ calib_aruco.py          # ArUco / AprilTag 位姿
-│     │
-│     ├─ robot/
-│     │  ├─ __init__.py
-│     │  ├─ mycobot280_m5.py        # 机械臂控制封装
-│     │  ├─ servo_head.py           # 上下/左右两个舵机的云台封装
-│     │  └─ interfaces.py           # Actuator / Gimbal 抽象接口
-│     │
-│     ├─ devices/
-│     │  ├─ __init__.py
-│     │  ├─ moxibustion_head.py     # 艾灸头这一整套的抽象（含舵机+传感器位姿）
-│     │  └─ exhaust_fan.py          # 排烟机控制
-│     │
-│     ├─ safety/
-│     │  ├─ __init__.py
-│     │  ├─ state.py                # SystemState 数据结构
-│     │  └─ rules.py                # 安全规则/状态机
-│     │
-│     ├─ apps/                      # 各种 demo / 实验脚本
-│     │  ├─ __init__.py (可选)
-│     │  ├─ read_temp_demo.py
-│     │  ├─ read_distance_demo.py
-│     │  ├─ sensors_loop_demo.py
-│     │  ├─ d455_preview_demo.py
-│     │  ├─ mycobot_basic_demo.py
-│     │  ├─ servo_head_demo.py
-│     │  └─ integrated_safe_loop_demo.py
-│     │
-│     ├─ core/                      # 整体调度、配置、运行时
-│     │  ├─ __init__.py
-│     │  ├─ config.py               # 参数 & 阈值
-│     │  ├─ orchestrator.py         # 把 sensors+vision+robot+devices 串起来
-│     │  └─ logging.py              # 统一日志配置
-│     │
-│     └─ __init__.py
-└─ tests/                           # 单元测试（以后再补）
-2、写 import 的简易规则
-同一个子包内部（sensors 里面互相 import）
-用相对导入：
-from .backends.base import I2CBackend
-from .mlx90614 import MLX90614
+# Huijiu Prototype — Integration / Platform Delivery | 慧灸原型 — 平台集成交付型作品集
 
+**EN (Positioning):** A delivery-oriented prototype that integrates **sensing + vision + robotics** with runnable demos and delivery artifacts (contracts/runbook/accuracy).  
+**中文（定位）：** 一个以“交付证据”为核心的跨域集成原型：**传感 + 视觉 + 机械臂**闭环，配套可运行 Demo 与工程化交付文档（数据契约 / Runbook / 精度实验）。
 
-跨子包（robot 里想用 sensors）
-用绝对导入：
-from huijiu.sensors.mlx90614 import MLX90614
-from huijiu.sensors.vl53l0x import VL53L0X
+---
 
-3、在根目录下安装，即huijiu-prototype下
-python.exe -m pip install -e .
-4、“入口脚本”自检
-python -m huijiu.apps.sandbox_check_imports
+## Why this repo exists | 为什么做这个仓库
+**EN:** This repo is built to demonstrate my capability for **Integration Engineer / Implementation Engineer / Platform Delivery (Analyst Programmer)** roles:  
+- Translate ambiguous requirements into a runnable system split (interfaces, data contracts, safety loop)  
+- Drive end-to-end delivery: integration, release readiness, rollback mindset, and measurable iteration  
+- Integrate unfamiliar domains (sensors, camera, robot, URDF, calibration) into an engineering workflow
 
-5、参考标记析：
-A4棋盘格规格：单格边长：35 mm，内角数：9×6 内角
-ArUco单牌尺寸：50–60 mm 边长，A4 排布：2×3 或 3×3 网格，间距≥20 mm空白边
+**中文：**用于证明我面向 **Integration/Implementation/平台交付型 Analyst Programmer** 的能力：  
+- 需求到方案：边界、验收口径、系统拆分、接口与数据契约  
+- 方案到交付：联调、上线准备、回滚与排障思维、可度量迭代  
+- 跨域整合：把不熟的硬件/第三方系统整合到可运行、可演示的工程体系中
+
+---
+
+## Architecture (3 layers) | 三层架构
+- **Sensing | 传感层**: MLX90614 (IR temperature), VL53L0X (distance) via I2C/USB bridge
+- **Vision | 视觉层**: RealSense D455, calibration utilities, ArUco utilities (world frame experiments)
+- **Robot | 机械臂层**: myCobot demos, URDF/FK/IK experiments, camera linkage (accuracy currently under improvement)
+- **Integrated loop | 集成闭环**: safe orchestration loop connecting perception → decision → actuation
+
+---
+
+## Current Progress (3 lines per layer) | 当前进度（每层三行）
+### 1) Sensing | 传感层
+- Done | 已完成：传感器读取与实时输出（温度/距离）
+- Doing | 正在做：数据规范化、异常值处理、安全阈值
+- Next | 下一步：数据契约 v1 + 运行手册 Runbook 融合
+
+### 2) Vision | 视觉层
+- Done | 已完成：D455 预览、标定产物与工具、ArUco 工具
+- Doing | 正在做：输出稳定 pose（timestamp/frame/confidence）供下游使用
+- Next | 下一步：用 ArUco 定义 world frame + 做重复测量数据集（>=20）
+
+### 3) Robot | 机械臂层
+- Done | 已完成：URDF 导入、基础 myCobot demos
+- Doing | 正在做：真 FK/IK + 与视觉联动（当前精度偏低）
+- Next | 下一步：精度拆解文档 + 坐标链路闭环，目标验收阈值：**<= 1cm**
+
+---
+
+## Product context (high-level)| 产品方向图（仅作背景）
+> EN: These diagrams are context only. This repo focuses on integration & delivery evidence.  
+> 中文：这些图仅作为产品背景，不作为本仓库主叙事。本仓库主叙事是“交付证据”。
+
+## Product context diagrams (optional) 
+- Ecosystem (ZH): ![Ecosystem](docs/images/product-context-zh.png)
+- Ecosystem (EN): ![Ecosystem](docs/images/product-context-en.png)
+- More diagrams: `docs/product/`
+---
+
+## Safety note | 安全声明
+> EN: This repo is a prototype to demonstrate integration & delivery capability. It is not a certified medical device.
+> **中文：**本仓库为工程交付能力展示原型，不构成医疗器械认证或临床用途声明。
+---
+
+## Quick Start (Windows) — run demos from /apps | 快速开始（Windows）
+### Prerequisites | 前置条件
+- Python 3.10+ (recommended)
+- RealSense D455 for vision demos (optional)
+- myCobot for robot demos (optional)
+
+### Setup | 环境初始化
+```bash
+git clone https://github.com/angelia-lab/huijiu-prototype.git
+cd huijiu-prototype
+
+python -m venv .venv
+.venv\Scripts\activate
+
+### Install (editable)
+```bash
+pip install -e .
+
+#Optional features
+pip install -e ".[vision]"    # RealSense + MediaPipe + OpenCV
+pip install -e ".[robot]"     # myCobot + IK/URDF
+pip install -e ".[hardware]"  # sensors/HID/serial
+```
+### Run demos | 运行 Demo
+Scripts are under `src/huijiu/apps/`.
+> Choose **ONE** of the following options (A or B).  
+#### Option A (recommended) — run from repo root with PYTHONPATH  
+**Windows (cmd):**
+```bat
+set PYTHONPATH=%CD%\src
+python src/huijiu/apps/sensors/read_temp_demo.py
+```
+**Windows (PowerShell):**
+```bat
+$env:PYTHONPATH="$pwd\src"
+python src/huijiu/apps/sensors/read_temp_demo.py
+```
+
+#### Option B — cd into src and run with relative path 
+```bat
+cd src
+python huijiu/apps/sensors/read_temp_demo.py
+```
+
+# Representative demos | 推荐入口（覆盖三层）
+```bash
+# Sensors | 传感
+python src/huijiu/apps/sensors/read_temp_demo.py
+python src/huijiu/apps/sensors/read_distance_demo.py
+
+# Vision | 视觉
+python src/huijiu/apps/vision/d455_preview_demo.py
+python src/huijiu/apps/vision/aruco_pose_demo.py
+
+# Robot | 机械臂
+python src/huijiu/apps/mybot/mycobot_basic_demo.py
+
+# Integrated safe loop | 集成安全闭环
+python src/huijiu/apps/integrated_safe_loop_demo.py
+
+```
+### Repository layout | 目录结构（高层）
+- src/huijiu/apps/ runnable demos (sensors / vision / robot / integrated) | 可运行入口
+- src/huijiu/core/ config / logging / orchestrator | 配置、日志、编排
+- src/huijiu/sensors/ sensor drivers + manager | 传感器驱动与管理
+- src/huijiu/vision/ D455 + ArUco utils + calibration scripts | 视觉与标定
+- src/huijiu/robot/ myCobot interface + URDF work | 机械臂接口与 URDF
+- src/hardware/ calibration outputs + URDF files | 标定产物与 URDF
+- docs/ delivery artifacts (contracts/runbook/accuracy) + diagrams | 交付物与图
+
+### Delivery artifacts (for recruiters) | 交付物
+- Planned/ongoing (will be updated progressively):
+- docs/data-contract.md — temp/target/command/safety | 数据契约（字段、单位、异常）
+- docs/runbook.md — stop/rollback/disconnect/anomaly/troubleshooting | 运行手册（急停/回滚/排障）
+- docs/accuracy.md — coordinate frames / hand-eye / URDF / acceptance criteria | 精度拆解与验收口径
