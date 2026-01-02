@@ -1,1 +1,0 @@
-#  4 类字段（temp/target/command/safety）+ 单位 + 异常处理规则。
